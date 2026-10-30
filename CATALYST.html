@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CATALYST | Claims &amp; Analytics Tracking and Leadership Yield System Tool</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Chart.js Treemap plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.1/dist/chartjs-chart-treemap.min.js"></script>
+  <!-- Date adapter for Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <!-- Datalabels plugin — direct value labels on charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+  <!-- ============================================================
+       SIDEBAR NAV
+  ============================================================ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <!-- Official CATALYST logo image — do not replace with SVG/CSS -->
+        <img src="assets/logos/catalyst.png"
+             alt="CATALYST"
+             class="sidebar-logo-img"
+             draggable="false" />
+        <div class="logo-text">
+          <span class="logo-name">CATALYST</span>
+          <span class="logo-sub">Claims &amp; Analytics Tracking</span>
+        </div>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="nav-menu">
+      <a href="#" class="nav-item active" data-page="overview">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <span class="nav-label">Executive Overview</span>
+      </a>
+      <a href="#" class="nav-item" data-page="inventory">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Inventory Analytics</span>
+      </a>
+      <a href="#" class="nav-item" data-page="sla">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </span>
+        <span class="nav-label">SLA Analytics</span>
+      </a>
+      <a href="#" class="nav-item" data-page="production">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </span>
+        <span class="nav-label">Production Analytics</span>
+      </a>
+      <a href="#" class="nav-item" data-page="trends">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+          </svg>
+        </span>
+        <span class="nav-label">Trends &amp; Forecasting</span>
+      </a>
+      <a href="#" class="nav-item nav-item-validation" data-page="validation">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+        </span>
+        <span class="nav-label">Data Validation</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="refresh-info">
+        <span class="refresh-dot"></span>
+        <span class="refresh-label">Last Refresh</span>
+        <span class="refresh-time" id="lastRefresh">Loading...</span>
+      </div>
+      <div class="powered-by">
+        <span class="powered-label">Powered By</span>
+        <div class="powered-logos">
+          <!-- IGNITE: wide landscape — full-width glass card, stacked above CDC -->
+          <div class="powered-badge powered-badge-ignite">
+            <img src="assets/logos/ignite.png"
+                 alt="Payment Integrity IGNITE"
+                 class="powered-logo powered-logo-ignite"
+                 draggable="false" />
+          </div>
+          <!-- CDC: square emblem — centered glass card -->
+          <div class="powered-badge powered-badge-cdc">
+            <img src="assets/logos/cdc-emblem.png"
+                 alt="CDC"
+                 class="powered-logo powered-logo-cdc"
+                 draggable="false" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+  ============================================================ -->
+  <main class="main" id="main">
+
+    <!-- ============================================================
+         BRAND STRIP — official logo files only, no SVG recreation
+    ============================================================ -->
+    <div class="brand-strip" id="brandStrip">
+      <!-- LEFT: CATALYST hero logo — larger than before -->
+      <div class="brand-left">
+        <img src="assets/logos/catalyst.png"
+             alt="CATALYST"
+             class="brand-catalyst"
+             draggable="false" />
+      </div>
+
+      <!-- CENTER: Dashboard identity text -->
+      <div class="brand-center">
+        <span class="brand-title">CATALYST</span>
+        <span class="brand-subtitle">Claims &amp; Analytics Tracking and Leadership Yield System Tool</span>
+      </div>
+
+      <!-- RIGHT: Ownership logos — Clinical Tower | Carelon | Payment Integrity
+           No containers — logos sit directly on the white header. -->
+      <div class="brand-partners">
+        <img src="assets/logos/clinical-tower.png"
+             alt="Clinical Tower"
+             class="brand-partner brand-partner-ct"
+             draggable="false" />
+        <span class="brand-divider"></span>
+        <img src="assets/logos/carelon.png"
+             alt="Carelon Global Solutions"
+             class="brand-partner"
+             draggable="false" />
+        <span class="brand-divider"></span>
+        <img src="assets/logos/pi.png"
+             alt="Payment Integrity"
+             class="brand-partner brand-partner-pi"
+             draggable="false" />
+      </div>
+    </div>
+
+    <!-- PAGE: EXECUTIVE OVERVIEW -->
+    <section class="page active" id="page-overview">
+
+      <!-- Header -->
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">Executive Overview</h1>
+          <p class="page-subtitle">Claims &amp; Analytics Tracking and Leadership Yield System Tool</p>
+        </div>
+        <div class="header-controls">
+          <div class="filter-bar" data-page="overview">
+            <div class="filter-group">
+              <label class="filter-label">Period</label>
+              <div class="btn-group">
+                <button class="btn-period active" data-period="latest">Latest Available</button>
+                <button class="btn-period" data-period="cur-month">Current Month</button>
+                <button class="btn-period" data-period="prev-month">Previous Month</button>
+                <button class="btn-period" data-period="qtd">Current Quarter</button>
+                <button class="btn-period" data-period="prev-qtr">Previous Quarter</button>
+                <button class="btn-period" data-period="ytd">Current Year</button>
+                <button class="btn-period" data-period="all">All Data</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Months</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-month-btn">Select Months ▾</button>
+                <div class="ms-picker-menu ms-month-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Years</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-year-btn">Select Years ▾</button>
+                <div class="ms-picker-menu ms-year-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Compare</label>
+              <select class="select-filter filter-compare">
+                <option value="none">None</option>
+                <option value="previous">vs Previous Period</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Custom Range</label>
+              <div class="custom-range">
+                <input type="date" class="select-filter filter-custom-from" />
+                <span class="range-sep">–</span>
+                <input type="date" class="select-filter filter-custom-to" />
+                <button type="button" class="btn-filter filter-custom-apply">Apply</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Inventory Type</label>
+              <select class="select-filter" id="inventoryTypeFilter">
+                <option value="all">All Types</option>
+                <option value="COB SLA 30D">COB SLA 30D</option>
+                <option value="NONCOB SLA 30D">NONCOB SLA 30D</option>
+                <option value="IQT SLA 30D">IQT SLA 30D</option>
+                <option value="Cash Control SLA">Cash Control SLA</option>
+                <option value="Collection SLA">Collection SLA</option>
+                <option value="Prepay SLA">Prepay SLA</option>
+                <option value="Dispute Triage SLA">Dispute Triage SLA</option>
+                <option value="Disputes &amp; Intakes SLA">Disputes &amp; Intakes SLA</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi-card" id="kpi-total">
+          <div class="kpi-icon kpi-icon-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+            </svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-purple">Total Inventory</span>
+            <span class="kpi-value" id="val-total">—</span>
+            <span class="kpi-trend" id="trend-total"></span>
+          </div>
+        </div>
+        <div class="kpi-card" id="kpi-outSLA">
+          <div class="kpi-icon kpi-icon-salmon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-salmon">Out of SLA</span>
+            <span class="kpi-value" id="val-outSLA">—</span>
+            <span class="kpi-trend" id="trend-outSLA"></span>
+          </div>
+        </div>
+        <div class="kpi-card" id="kpi-inSLA">
+          <div class="kpi-icon kpi-icon-teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-teal">In SLA</span>
+            <span class="kpi-value" id="val-inSLA">—</span>
+            <span class="kpi-trend" id="trend-inSLA"></span>
+          </div>
+        </div>
+        <div class="kpi-card" id="kpi-daily">
+          <div class="kpi-icon kpi-icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-blue">Daily Production</span>
+            <span class="kpi-value" id="val-daily">—</span>
+            <span class="kpi-trend" id="trend-daily"></span>
+          </div>
+        </div>
+        <div class="kpi-card kpi-card-highlight" id="kpi-entSLA">
+          <div class="kpi-icon kpi-icon-gradient">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-violet">Enterprise SLA %</span>
+            <span class="kpi-value kpi-pct" id="val-entSLA">—</span>
+            <span class="kpi-trend" id="trend-entSLA"></span>
+          </div>
+          <div class="kpi-glow"></div>
+        </div>
+      </div>
+
+      <!-- Main Body -->
+      <div class="main-body">
+
+        <!-- LEFT: SLA Health Donut -->
+        <div class="panel panel-left">
+          <div class="panel-header">
+            <h2 class="panel-title">Inventory SLA Health</h2>
+            <span class="panel-badge" id="sla-badge">Live</span>
+          </div>
+          <div class="donut-container">
+            <canvas id="donutChart"></canvas>
+            <div class="donut-center">
+              <span class="donut-pct" id="donut-pct">—</span>
+              <span class="donut-label">Within SLA</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="legend-item">
+              <span class="legend-dot" style="background:#00BCBB"></span>
+              <div class="legend-info">
+                <span class="legend-name">SLA Met</span>
+                <span class="legend-val" id="legend-met">—</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot" style="background:#FA8072"></span>
+              <div class="legend-info">
+                <span class="legend-name">SLA Missed</span>
+                <span class="legend-val" id="legend-missed">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Inventory by Type -->
+        <div class="panel panel-right">
+          <div class="panel-header">
+            <h2 class="panel-title">Inventory by Type</h2>
+            <div class="tab-toggle">
+              <button class="tab-btn active" id="tab-treemap">Treemap</button>
+              <button class="tab-btn" id="tab-risk">Risk Table</button>
+            </div>
+          </div>
+
+          <!-- Treemap -->
+          <div class="treemap-container" id="treemap-view">
+            <canvas id="treemapChart"></canvas>
+          </div>
+
+          <!-- Risk Table -->
+          <div class="risk-table-container hidden" id="risk-view">
+            <table class="risk-table">
+              <thead>
+                <tr>
+                  <th>Inventory Type</th>
+                  <th>Total</th>
+                  <th>Out of SLA</th>
+                  <th>Out SLA %</th>
+                  <th>In SLA %</th>
+                </tr>
+              </thead>
+              <tbody id="riskTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Charts -->
+      <div class="bottom-charts">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3 class="chart-title">Inventory Trend</h3>
+              <p class="chart-sub">Total inventory over time</p>
+            </div>
+            <div class="chart-badge chart-badge-purple">Total</div>
+          </div>
+          <div class="chart-body">
+            <canvas id="invTrendChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3 class="chart-title">Enterprise SLA Trend</h3>
+              <p class="chart-sub">Average SLA % over time</p>
+            </div>
+            <div class="chart-badge chart-badge-teal">SLA %</div>
+          </div>
+          <div class="chart-body">
+            <canvas id="slaTrendChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3 class="chart-title">Daily Production Trend</h3>
+              <p class="chart-sub">Daily production volume over time</p>
+            </div>
+            <div class="chart-badge chart-badge-blue">Production</div>
+          </div>
+          <div class="chart-body">
+            <canvas id="prodTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- PAGE: INVENTORY ANALYTICS -->
+    <section class="page" id="page-inventory">
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">Inventory Analytics</h1>
+          <p class="page-subtitle">Detailed inventory breakdown by type and date</p>
+        </div>
+        <div class="header-controls">
+          <div class="filter-bar" data-page="inventory">
+            <div class="filter-group">
+              <label class="filter-label">Period</label>
+              <div class="btn-group">
+                <button class="btn-period active" data-period="latest">Latest Available</button>
+                <button class="btn-period" data-period="cur-month">Current Month</button>
+                <button class="btn-period" data-period="prev-month">Previous Month</button>
+                <button class="btn-period" data-period="qtd">Current Quarter</button>
+                <button class="btn-period" data-period="prev-qtr">Previous Quarter</button>
+                <button class="btn-period" data-period="ytd">Current Year</button>
+                <button class="btn-period" data-period="all">All Data</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Months</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-month-btn">Select Months ▾</button>
+                <div class="ms-picker-menu ms-month-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Years</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-year-btn">Select Years ▾</button>
+                <div class="ms-picker-menu ms-year-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Compare</label>
+              <select class="select-filter filter-compare">
+                <option value="none">None</option>
+                <option value="previous">vs Previous Period</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Custom Range</label>
+              <div class="custom-range">
+                <input type="date" class="select-filter filter-custom-from" />
+                <span class="range-sep">–</span>
+                <input type="date" class="select-filter filter-custom-to" />
+                <button type="button" class="btn-filter filter-custom-apply">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="analytics-grid">
+        <div class="chart-card chart-card-wide">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Inventory by Type — Total</h3><p class="chart-sub">Stacked comparison across all inventory types</p></div>
+          </div>
+          <div class="chart-body chart-body-tall">
+            <canvas id="invByTypeChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><h3 class="chart-title">In SLA vs Out of SLA</h3><p class="chart-sub">By inventory type</p></div>
+          </div>
+          <div class="chart-body">
+            <canvas id="slaCompareChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card chart-card-pie">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Inventory Distribution</h3><p class="chart-sub">Share of total by type — hover for detail</p></div>
+          </div>
+          <div class="chart-body chart-body-pie">
+            <canvas id="invPieChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: SLA ANALYTICS -->
+    <section class="page" id="page-sla">
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">SLA Analytics</h1>
+          <p class="page-subtitle">Service level agreement performance monitoring</p>
+        </div>
+        <div class="header-controls">
+          <div class="filter-bar" data-page="sla">
+            <div class="filter-group">
+              <label class="filter-label">Period</label>
+              <div class="btn-group">
+                <button class="btn-period active" data-period="latest">Latest Available</button>
+                <button class="btn-period" data-period="cur-month">Current Month</button>
+                <button class="btn-period" data-period="prev-month">Previous Month</button>
+                <button class="btn-period" data-period="qtd">Current Quarter</button>
+                <button class="btn-period" data-period="prev-qtr">Previous Quarter</button>
+                <button class="btn-period" data-period="ytd">Current Year</button>
+                <button class="btn-period" data-period="all">All Data</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Months</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-month-btn">Select Months ▾</button>
+                <div class="ms-picker-menu ms-month-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Years</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-year-btn">Select Years ▾</button>
+                <div class="ms-picker-menu ms-year-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Compare</label>
+              <select class="select-filter filter-compare">
+                <option value="none">None</option>
+                <option value="previous">vs Previous Period</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Custom Range</label>
+              <div class="custom-range">
+                <input type="date" class="select-filter filter-custom-from" />
+                <span class="range-sep">–</span>
+                <input type="date" class="select-filter filter-custom-to" />
+                <button type="button" class="btn-filter filter-custom-apply">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="kpi-row kpi-row-3">
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Enterprise SLA Avg</span>
+            <span class="kpi-value kpi-pct" id="sla-avg">—</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Peak SLA Day</span>
+            <span class="kpi-value" id="sla-peak">—</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-salmon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="2 7 8.5 13.5 13.5 8.5 22 17"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label kpi-label-salmon">Lowest SLA Day</span>
+            <span class="kpi-value" id="sla-low">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="analytics-grid analytics-grid-2">
+        <div class="chart-card chart-card-wide">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Enterprise SLA Trend</h3><p class="chart-sub">Daily SLA % from Inventory_SLA table</p></div>
+          </div>
+          <div class="chart-body chart-body-tall">
+            <canvas id="slaTrendChartFull"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><h3 class="chart-title">SLA % by Inventory Type</h3><p class="chart-sub">In SLA / Total for each type</p></div>
+          </div>
+          <div class="chart-body">
+            <canvas id="slaByTypeChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><h3 class="chart-title">SLA Distribution</h3><p class="chart-sub">Frequency of SLA% ranges</p></div>
+          </div>
+          <div class="chart-body">
+            <canvas id="slaHistChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: PRODUCTION ANALYTICS -->
+    <section class="page" id="page-production">
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">Production Analytics</h1>
+          <p class="page-subtitle">Daily production volume and throughput metrics</p>
+        </div>
+        <div class="header-controls">
+          <div class="filter-bar" data-page="production">
+            <div class="filter-group">
+              <label class="filter-label">Period</label>
+              <div class="btn-group">
+                <button class="btn-period active" data-period="latest">Latest Available</button>
+                <button class="btn-period" data-period="cur-month">Current Month</button>
+                <button class="btn-period" data-period="prev-month">Previous Month</button>
+                <button class="btn-period" data-period="qtd">Current Quarter</button>
+                <button class="btn-period" data-period="prev-qtr">Previous Quarter</button>
+                <button class="btn-period" data-period="ytd">Current Year</button>
+                <button class="btn-period" data-period="all">All Data</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Months</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-month-btn">Select Months ▾</button>
+                <div class="ms-picker-menu ms-month-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Years</label>
+              <div class="ms-picker">
+                <button type="button" class="select-filter ms-picker-btn ms-year-btn">Select Years ▾</button>
+                <div class="ms-picker-menu ms-year-menu"></div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Compare</label>
+              <select class="select-filter filter-compare">
+                <option value="none">None</option>
+                <option value="previous">vs Previous Period</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Custom Range</label>
+              <div class="custom-range">
+                <input type="date" class="select-filter filter-custom-from" />
+                <span class="range-sep">–</span>
+                <input type="date" class="select-filter filter-custom-to" />
+                <button type="button" class="btn-filter filter-custom-apply">Apply</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Inventory Type</label>
+              <select class="select-filter" id="prodTypeFilter">
+                <option value="all">All Types</option>
+                <option value="COB SLA 30D">COB SLA 30D</option>
+                <option value="NONCOB SLA 30D">NONCOB SLA 30D</option>
+                <option value="IQT SLA 30D">IQT SLA 30D</option>
+                <option value="Cash Control SLA">Cash Control SLA</option>
+                <option value="Collection SLA">Collection SLA</option>
+                <option value="Prepay SLA">Prepay SLA</option>
+                <option value="Dispute Triage SLA">Dispute Triage SLA</option>
+                <option value="Disputes &amp; Intakes SLA">Disputes &amp; Intakes SLA</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="kpi-row kpi-row-3">
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Total Production</span>
+            <span class="kpi-value" id="prod-total">—</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Peak Day Production</span>
+            <span class="kpi-value" id="prod-peak">—</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Avg Daily Production</span>
+            <span class="kpi-value" id="prod-avg">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="analytics-grid analytics-grid-2">
+        <div class="chart-card chart-card-wide">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Daily Production Volume</h3><p class="chart-sub">Production output by date</p></div>
+          </div>
+          <div class="chart-body chart-body-tall">
+            <canvas id="prodTrendChartFull"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Production by Type</h3><p class="chart-sub">Total production per inventory type</p></div>
+          </div>
+          <div class="chart-body">
+            <canvas id="prodByTypeChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><h3 class="chart-title">Production Heatmap by Month</h3><p class="chart-sub">Monthly production totals</p></div>
+          </div>
+          <div class="chart-body">
+            <canvas id="prodMonthChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: TRENDS & FORECASTING -->
+    <section class="page" id="page-trends">
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">Trends &amp; Forecasting</h1>
+          <p class="page-subtitle">Historical trends, moving averages, and executive insights</p>
+        </div>
+      </header>
+
+      <!-- HOW TO READ THIS PAGE -->
+      <div class="how-to-read">
+        <div class="how-to-read-title">How to Read This Page</div>
+        <div class="how-to-read-body">
+          This page displays long-term operational performance trends. Each chart is paired with an
+          executive insight that interprets the data so leadership can act immediately.
+        </div>
+        <div class="how-to-read-terms">
+          <span class="how-to-read-term"><strong>Peak</strong> = Highest historical value recorded</span>
+          <span class="how-to-read-term"><strong>Low</strong> = Lowest historical value recorded</span>
+          <span class="how-to-read-term"><strong>Current</strong> = Latest available data point</span>
+          <span class="how-to-read-term"><strong>Moving Average</strong> = Underlying trend with daily volatility removed</span>
+          <span class="how-to-read-term"><strong>90% SLA Threshold</strong> = Enterprise performance target</span>
+        </div>
+      </div>
+
+      <div class="analytics-grid analytics-grid-single">
+
+        <!-- INVENTORY VOLUME TREND -->
+        <div class="trend-block">
+          <div class="chart-card chart-card-wide">
+            <div class="chart-header">
+              <div><h3 class="chart-title">Inventory Volume Trend — 30-Day Moving Average</h3><p class="chart-sub">Total inventory over time with rolling average to reveal the underlying trend</p></div>
+            </div>
+            <div class="chart-body chart-body-tall">
+              <canvas id="trendInvMAChart"></canvas>
+            </div>
+          </div>
+          <div class="insight-panel" id="insight-inv">
+            <div class="insight-header">
+              <span class="insight-label">Key Insight — Inventory Volume</span>
+              <span class="insight-status" id="insight-inv-status">—</span>
+            </div>
+            <div class="insight-metrics">
+              <div class="insight-metric">
+                <span class="insight-metric-label">Peak Inventory</span>
+                <span class="insight-metric-value" id="insight-inv-peak">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Current Inventory</span>
+                <span class="insight-metric-value" id="insight-inv-current">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Change from Peak</span>
+                <span class="insight-metric-value" id="insight-inv-change">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">30-Day MA Trend</span>
+                <span class="insight-metric-value" id="insight-inv-trend">—</span>
+              </div>
+            </div>
+            <div class="insight-text" id="insight-inv-text">Calculating...</div>
+          </div>
+        </div>
+
+        <!-- ENTERPRISE SLA TREND -->
+        <div class="trend-block">
+          <div class="chart-card chart-card-wide">
+            <div class="chart-header">
+              <div><h3 class="chart-title">Enterprise SLA Trend — 7-Day Moving Average</h3><p class="chart-sub">SLA % over time with rolling average — 90% threshold is the enterprise performance target</p></div>
+            </div>
+            <div class="chart-body chart-body-tall">
+              <canvas id="trendSlaMAChart"></canvas>
+            </div>
+          </div>
+          <div class="insight-panel" id="insight-sla">
+            <div class="insight-header">
+              <span class="insight-label">Key Insight — Enterprise SLA</span>
+              <span class="insight-status" id="insight-sla-status">—</span>
+            </div>
+            <div class="insight-metrics">
+              <div class="insight-metric">
+                <span class="insight-metric-label">Current SLA</span>
+                <span class="insight-metric-value" id="insight-sla-current">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Target SLA</span>
+                <span class="insight-metric-value" style="color:#5009B5">90.0%</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Variance vs Target</span>
+                <span class="insight-metric-value" id="insight-sla-variance">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Historical Low</span>
+                <span class="insight-metric-value" id="insight-sla-low">—</span>
+              </div>
+            </div>
+            <div class="insight-text" id="insight-sla-text">Calculating...</div>
+          </div>
+        </div>
+
+        <!-- IN SLA VS OUT SLA -->
+        <div class="trend-block">
+          <div class="chart-card chart-card-wide">
+            <div class="chart-header">
+              <div><h3 class="chart-title">In SLA vs Out of SLA Over Time</h3><p class="chart-sub">Volume comparison — healthy operations maintain a large In SLA proportion relative to Out of SLA</p></div>
+            </div>
+            <div class="chart-body chart-body-tall">
+              <canvas id="trendStackChart"></canvas>
+            </div>
+          </div>
+          <div class="insight-panel" id="insight-stack">
+            <div class="insight-header">
+              <span class="insight-label">Key Insight — SLA Health Split</span>
+              <span class="insight-status" id="insight-stack-status">—</span>
+            </div>
+            <div class="insight-metrics">
+              <div class="insight-metric">
+                <span class="insight-metric-label">Current In SLA</span>
+                <span class="insight-metric-value positive" id="insight-stack-insla">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Current Out of SLA</span>
+                <span class="insight-metric-value" id="insight-stack-outsla">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Out of SLA %</span>
+                <span class="insight-metric-value" id="insight-stack-pct">—</span>
+              </div>
+              <div class="insight-metric">
+                <span class="insight-metric-label">Peak Out of SLA</span>
+                <span class="insight-metric-value" id="insight-stack-peakout">—</span>
+              </div>
+            </div>
+            <div class="insight-text" id="insight-stack-text">Calculating...</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PAGE: DATA VALIDATION -->
+    <section class="page" id="page-validation">
+      <header class="page-header">
+        <div class="header-left">
+          <h1 class="page-title">Data Validation</h1>
+          <p class="page-subtitle">Raw data from data.js — use to reconcile against the Excel source workbook</p>
+        </div>
+        <div class="header-controls">
+          <div class="filter-group">
+            <label class="filter-label">Inventory Type</label>
+            <select class="select-filter" id="valTypeFilter">
+              <option value="all">All Types</option>
+              <option value="COB SLA 30D">COB SLA 30D</option>
+              <option value="NONCOB SLA 30D">NONCOB SLA 30D</option>
+              <option value="IQT SLA 30D">IQT SLA 30D</option>
+              <option value="Cash Control SLA">Cash Control SLA</option>
+              <option value="Collection SLA">Collection SLA</option>
+              <option value="Prepay SLA">Prepay SLA</option>
+              <option value="Dispute Triage SLA">Dispute Triage SLA</option>
+              <option value="Disputes &amp; Intakes SLA">Disputes &amp; Intakes SLA</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Metric</label>
+            <select class="select-filter" id="valMetricFilter">
+              <option value="all">All Metrics</option>
+              <option value="Total">Total</option>
+              <option value="IN SLA">IN SLA</option>
+              <option value="Out of SLA">Out of SLA</option>
+              <option value="Daily Production">Daily Production</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Date From</label>
+            <input type="date" class="select-filter" id="valDateFrom" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Date To</label>
+            <input type="date" class="select-filter" id="valDateTo" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">&nbsp;</label>
+            <button class="btn-filter active" id="valApplyBtn">Apply</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Reconciliation summary bar -->
+      <div class="val-summary-row" id="valSummaryRow">
+        <div class="val-summary-card">
+          <span class="val-summary-label">Filtered Rows</span>
+          <span class="val-summary-val" id="val-rowcount">—</span>
+        </div>
+        <div class="val-summary-card">
+          <span class="val-summary-label">Sum of Value</span>
+          <span class="val-summary-val" id="val-sumval">—</span>
+        </div>
+        <div class="val-summary-card">
+          <span class="val-summary-label">Date Range in Filter</span>
+          <span class="val-summary-val" id="val-daterange">—</span>
+        </div>
+        <div class="val-summary-card">
+          <span class="val-summary-label">Unique Dates</span>
+          <span class="val-summary-val" id="val-uniquedates">—</span>
+        </div>
+      </div>
+
+      <!-- Per-metric totals by type (reconciliation matrix) -->
+      <div class="panel" style="padding:20px; margin-bottom:0;">
+        <div class="panel-header" style="margin-bottom:12px;">
+          <h2 class="panel-title">Reconciliation Matrix — Sum by Type &times; Metric</h2>
+          <span style="font-size:11px;color:var(--text-muted);">Matches filtered date range above</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="risk-table" id="valMatrixTable">
+            <thead>
+              <tr>
+                <th>Inventory Type</th>
+                <th>Total</th>
+                <th>IN SLA</th>
+                <th>Out of SLA</th>
+                <th>Daily Production</th>
+                <th>SLA %</th>
+              </tr>
+            </thead>
+            <tbody id="valMatrixBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Raw row table -->
+      <div class="panel" style="padding:20px;">
+        <div class="panel-header" style="margin-bottom:12px;">
+          <h2 class="panel-title">Raw Data Rows</h2>
+          <span style="font-size:11px;color:var(--text-muted);" id="val-showing">Showing — rows</span>
+        </div>
+        <div style="overflow-x:auto; max-height:420px; overflow-y:auto;">
+          <table class="risk-table" id="valRawTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Inventory Type</th>
+                <th>Metric</th>
+                <th style="text-align:right;">Value</th>
+              </tr>
+            </thead>
+            <tbody id="valRawBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="loading-logo">
+        <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="30" cy="30" r="28" stroke="url(#lg)" stroke-width="2" stroke-dasharray="175" stroke-dashoffset="0" class="spin-ring"/>
+          <path d="M18 30 L30 14 L42 30 L30 46 Z" fill="url(#lg)" opacity="0.85"/>
+          <path d="M21 30 L30 18 L39 30 L30 42 Z" fill="#F5F5F5"/>
+          <circle cx="30" cy="30" r="5" fill="url(#lg)"/>
+          <defs>
+            <linearGradient id="lg" x1="0" y1="0" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#8271FA"/>
+              <stop offset="100%" stop-color="#44B8F3"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="loading-text">CATALYST</div>
+      <div class="loading-sub">Loading CATALYST...</div>
+      <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Embedded data — no server required, works with file:// -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
