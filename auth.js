@@ -1,18 +1,16 @@
 /* ============================================================
    CATALYST - Identity, Access & User Management
    ------------------------------------------------------------
-   Layered architecture designed for future Entra ID / SSO:
+   Backend: SharePoint Lists (shared source of truth)
+     CATALYST_Users         - roster, roles, Active flag
+     CATALYST_AuditLog      - append-only change history
+     CATALYST_LoginActivity - append-only login attempts
 
-     AuthProvider.authenticate()   <- swap point for SSO.
-                                    Today: shared password.
-                                    Future: MSAL/OIDC token.
-     UserStore                     <- persistence adapter.
-                                    Today: users.js seed +
-                                           localStorage overlay.
-                                    Future: API / database.
+   Fallback: localStorage (LOCAL MODE) when the dashboard is
+   not served from SharePoint — clearly flagged in the UI.
 
-   User model fields are provider-agnostic (ObjectId, upn,
-   role) so Entra claims can map directly without a redesign.
+   SSO seam: AuthProvider.authenticate() is the single swap
+   point for Entra ID. User model carries Upn/EntraObjectId.
    ============================================================ */
 
 const CATALYST_AUTH = (() => {
@@ -21,143 +19,287 @@ const CATALYST_AUTH = (() => {
   const LS_USERS   = 'catalyst_users_v1';
   const LS_AUDIT   = 'catalyst_audit_v1';
   const LS_LOGINS  = 'catalyst_logins_v1';
+  const LS_CONFIG  = 'catalyst_config_v1';
   const SS_SESSION = 'catalyst_session';
-
-  // Shared password for the pre-SSO phase.
-  // Removed entirely once Entra ID authenticate() is wired in.
-  const SHARED_PASSWORD = 'Catalyst@Ignite2026';
-
   const ROLES = ['Admin', 'Manager', 'Leadership'];
 
-  // ── Persistence layer (localStorage) ──────────────────────
-  function _readLS(key, fallback) {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (e) { return fallback; }
-  }
-  function _writeLS(key, val) {
-    localStorage.setItem(key, JSON.stringify(val));
-  }
+  // Defaults — used only when the CATALYST_Configuration list is unreachable
+  const CONFIG_DEFAULTS = {
+    SharedPassword:  'Catalyst@Ignite2026',
+    SlaThreshold:    '0.85',
+    SessionTimeoutMin: '480',
+    LoginActivityRetentionDays: '90',
+    AppVersion: '1.0',
+  };
 
-  // ── UserStore ─────────────────────────────────────────────
-  // Seed (users.js) -> localStorage overlay.
-  // The seed populates the store only on first launch (or if the
-  // stored version is older). Admin edits live in localStorage.
-  const UserStore = {
-    _users: null,
+  const CFG = () => window.CATALYST_SP_CONFIG || { enabled: false };
 
-    _ensureLoaded() {
-      if (this._users) return;
-      const stored = _readLS(LS_USERS, null);
-      const seed   = (window.CATALYST_USERS_SEED && window.CATALYST_USERS_SEED.users) || [];
-      if (stored && Array.isArray(stored.users) && stored.users.length) {
-        this._users = stored.users;
-      } else {
-        this._users = seed.map(u => ({ ...u }));
-        this._persist();
-      }
+  // ── SharePoint REST client ────────────────────────────────
+  const SP = {
+    _digest: null, _digestAt: 0,
+
+    _base() { return CFG().siteUrl.replace(/\/+$/, '') + '/_api'; },
+
+    async _digestToken() {
+      if (this._digest && Date.now() - this._digestAt < 25 * 60 * 1000) return this._digest;
+      const r = await fetch(this._base() + '/contextinfo', {
+        method: 'POST', credentials: 'include',
+        headers: { Accept: 'application/json;odata=nometadata' },
+      });
+      if (!r.ok) throw new Error('Digest fetch failed: ' + r.status);
+      const j = await r.json();
+      this._digest = j.FormDigestValue; this._digestAt = Date.now();
+      return this._digest;
     },
 
-    _persist() { _writeLS(LS_USERS, { users: this._users }); },
+    async items(list, query = '') {
+      const url = `${this._base()}/web/lists/getbytitle('${encodeURIComponent(list)}')/items?${query}`;
+      const r = await fetch(url, { credentials: 'include',
+        headers: { Accept: 'application/json;odata=nometadata' } });
+      if (!r.ok) throw new Error(`SP GET ${list} failed: ${r.status}`);
+      return (await r.json()).value;
+    },
 
-    all()           { this._ensureLoaded(); return [...this._users]; },
-    find(domainId)  { this._ensureLoaded(); return this._users.find(u => u.DomainId.toUpperCase() === String(domainId).toUpperCase()) || null; },
+    async createItem(list, body) {
+      const digest = await this._digestToken();
+      const r = await fetch(`${this._base()}/web/lists/getbytitle('${encodeURIComponent(list)}')/items`, {
+        method: 'POST', credentials: 'include',
+        headers: {
+          Accept: 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=nometadata',
+          'X-RequestDigest': digest,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`SP create ${list} failed: ${r.status} ${await r.text()}`);
+      return r.json();
+    },
 
-    add(user, actor) {
-      this._ensureLoaded();
+    async updateItem(list, id, body) {
+      const digest = await this._digestToken();
+      const r = await fetch(`${this._base()}/web/lists/getbytitle('${encodeURIComponent(list)}')/items(${id})`, {
+        method: 'POST', credentials: 'include',
+        headers: {
+          Accept: 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=nometadata',
+          'X-RequestDigest': digest,
+          'IF-MATCH': '*',
+          'X-HTTP-Method': 'MERGE',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`SP update ${list}#${id} failed: ${r.status}`);
+    },
+
+    async reachable() {
+      if (!CFG().enabled) return false;
+      try {
+        await this.items(CFG().lists.users, '$top=1&$select=Id');
+        return true;
+      } catch (e) { return false; }
+    },
+  };
+
+  // ── localStorage helpers (fallback + read cache) ──────────
+  function _readLS(key, fallback) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (e) { return fallback; }
+  }
+  function _writeLS(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+
+  const _spUserToModel = it => ({
+    SpId: it.Id, DomainId: it.Title, Name: it.AssociateName, Manager: it.Manager,
+    Email: it.Email, Role: it.Role, Active: !!it.Active,
+    CreatedBy: it.CreatedByDomainId, CreatedAt: it.Created,
+    Upn: it.Upn || '', EntraObjectId: it.EntraObjectId || '',
+  });
+  const _modelToSp = u => ({
+    Title: u.DomainId, AssociateName: u.Name, Manager: u.Manager,
+    Email: u.Email, Role: u.Role, Active: u.Active,
+  });
+
+  // ── UserStore ─────────────────────────────────────────────
+  const UserStore = {
+    _cache: null, _loadedAt: 0,
+    backend: 'local',           // 'sp' | 'local' — set by load()
+
+    async load(force = false) {
+      if (this._cache && !force && Date.now() - this._loadedAt < (CFG().cacheTtlMs || 15000)) return;
+      if (await SP.reachable()) {
+        const items = await SP.items(CFG().lists.users, '$select=Id,Title,AssociateName,Manager,Email,Role,Active,CreatedByDomainId,Upn,EntraObjectId,Created&$top=5000');
+        this._cache = items.map(_spUserToModel);
+        this.backend = 'sp';
+        _writeLS(LS_USERS, { users: this._cache });   // offline read cache
+      } else {
+        this.backend = 'local';
+        const stored = _readLS(LS_USERS, null);
+        const seed   = (window.CATALYST_USERS_SEED && window.CATALYST_USERS_SEED.users) || [];
+        this._cache = (stored && Array.isArray(stored.users) && stored.users.length)
+          ? stored.users : seed.map(u => ({ ...u }));
+        _writeLS(LS_USERS, { users: this._cache });
+      }
+      this._loadedAt = Date.now();
+    },
+
+    all()  { return this._cache ? [...this._cache] : []; },
+    find(domainId) {
+      if (!this._cache) return null;
+      const id = String(domainId).toUpperCase();
+      return this._cache.find(u => u.DomainId.toUpperCase() === id) || null;
+    },
+
+    async add(user, actor) {
       if (this.find(user.DomainId)) throw new Error('Domain ID already exists');
       const rec = {
-        DomainId:  user.DomainId.trim(),
-        Name:      user.Name.trim(),
-        Manager:   (user.Manager || '').trim(),
-        Role:      ROLES.includes(user.Role) ? user.Role : 'Leadership',
-        Email:     (user.Email || '').trim(),
-        Active:    true,
-        CreatedBy: actor,
-        CreatedAt: new Date().toISOString(),
+        DomainId: user.DomainId.trim(), Name: user.Name.trim(),
+        Manager: (user.Manager || '').trim(), Email: (user.Email || '').trim(),
+        Role: ROLES.includes(user.Role) ? user.Role : 'Leadership',
+        Active: true, CreatedBy: actor, CreatedAt: new Date().toISOString(),
       };
-      this._users.push(rec);
-      this._persist();
-      Audit.log(actor, rec.DomainId, 'USER_ADDED', 'record', '', JSON.stringify({Name:rec.Name, Role:rec.Role}));
+      if (this.backend === 'sp') {
+        const created = await SP.createItem(CFG().lists.users, { ..._modelToSp(rec), CreatedByDomainId: actor });
+        rec.SpId = created.Id;
+      }
+      this._cache.push(rec);
+      _writeLS(LS_USERS, { users: this._cache });
+      Audit.log(actor, rec.DomainId, 'USER_ADDED', 'record', '', JSON.stringify({ Name: rec.Name, Role: rec.Role }));
       return rec;
     },
 
-    update(domainId, patch, actor) {
+    async update(domainId, patch, actor) {
       const u = this.find(domainId);
       if (!u) throw new Error('User not found: ' + domainId);
-      ['Name','Manager','Email'].forEach(f => {
+      const changed = {};
+      ['Name', 'Manager', 'Email'].forEach(f => {
         if (patch[f] !== undefined && patch[f] !== u[f]) {
           Audit.log(actor, domainId, 'USER_UPDATED', f, u[f], patch[f]);
+          changed[f === 'Name' ? 'AssociateName' : f] = patch[f];
           u[f] = patch[f];
         }
       });
-      this._persist();
+      if (this.backend === 'sp' && u.SpId && Object.keys(changed).length) {
+        await SP.updateItem(CFG().lists.users, u.SpId, changed);
+      }
+      _writeLS(LS_USERS, { users: this._cache });
       return u;
     },
 
-    setActive(domainId, active, actor) {
+    async setActive(domainId, active, actor) {
       const u = this.find(domainId);
       if (!u) throw new Error('User not found: ' + domainId);
-      if (u.Active !== active) {
-        u.Active = active;
-        Audit.log(actor, domainId, active ? 'USER_REACTIVATED' : 'USER_DISABLED', 'Active', String(!active), String(active));
-        this._persist();
+      if (u.Active === active) return u;
+      u.Active = active;
+      if (this.backend === 'sp' && u.SpId) {
+        await SP.updateItem(CFG().lists.users, u.SpId, { Active: active });
       }
+      Audit.log(actor, domainId, active ? 'USER_REACTIVATED' : 'USER_DISABLED', 'Active', String(!active), String(active));
+      _writeLS(LS_USERS, { users: this._cache });
       return u;
     },
 
-    setRole(domainId, role, actor) {
+    async setRole(domainId, role, actor) {
       const u = this.find(domainId);
       if (!u) throw new Error('User not found: ' + domainId);
       if (!ROLES.includes(role)) throw new Error('Invalid role: ' + role);
-      if (u.Role !== role) {
-        Audit.log(actor, domainId, 'ROLE_CHANGED', 'Role', u.Role, role);
-        u.Role = role;
-        this._persist();
+      if (u.Role === role) return u;
+      const old = u.Role; u.Role = role;
+      if (this.backend === 'sp' && u.SpId) {
+        await SP.updateItem(CFG().lists.users, u.SpId, { Role: role });
       }
+      Audit.log(actor, domainId, 'ROLE_CHANGED', 'Role', old, role);
+      _writeLS(LS_USERS, { users: this._cache });
       return u;
     },
   };
 
-  // ── Audit trail ───────────────────────────────────────────
+  // ── Audit trail (append-only) ─────────────────────────────
   const Audit = {
     log(actor, target, action, field, oldVal, newVal) {
-      const log = _readLS(LS_AUDIT, []);
-      log.push({
-        Timestamp: new Date().toISOString(),
-        Actor:     actor,
-        Target:    target,
-        Action:    action,
-        Field:     field  || '',
-        OldValue:  oldVal || '',
-        NewValue:  newVal || '',
-      });
-      _writeLS(LS_AUDIT, log);
+      const rec = {
+        Timestamp: new Date().toISOString(), Actor: actor, Target: target,
+        Action: action, Field: field || '', OldValue: oldVal || '', NewValue: newVal || '',
+      };
+      if (UserStore.backend === 'sp') {
+        SP.createItem(CFG().lists.audit, {
+          Title: 'AUD', Actor: actor, Target: target, Action: action,
+          Field: field || '', OldValue: String(oldVal || ''), NewValue: String(newVal || ''),
+        }).catch(e => console.warn('SP audit write failed', e));
+      } else {
+        const log = _readLS(LS_AUDIT, []); log.push(rec); _writeLS(LS_AUDIT, log);
+      }
     },
-    all() { return _readLS(LS_AUDIT, []); },
+    async all() {
+      if (UserStore.backend === 'sp') {
+        const items = await SP.items(CFG().lists.audit,
+          '$select=Created,Actor,Target,Action,Field,OldValue,NewValue&$orderby=Id desc&$top=2000');
+        return items.map(it => ({
+          Timestamp: it.Created, Actor: it.Actor, Target: it.Target,
+          Action: it.Action, Field: it.Field, OldValue: it.OldValue, NewValue: it.NewValue,
+        }));
+      }
+      return _readLS(LS_AUDIT, []);
+    },
   };
 
-  // ── Login activity ────────────────────────────────────────
+  // ── Login activity (append-only) ──────────────────────────
   const LoginActivity = {
     record(domainId, success, detail) {
-      const log = _readLS(LS_LOGINS, []);
-      log.push({ Timestamp: new Date().toISOString(), DomainId: domainId, Success: !!success, Detail: detail || '' });
-      _writeLS(LS_LOGINS, log);
+      if (UserStore.backend === 'sp') {
+        SP.createItem(CFG().lists.logins, {
+          Title: 'LOG', DomainId: domainId, Success: !!success, Detail: detail || '',
+        }).catch(e => console.warn('SP login write failed', e));
+      } else {
+        const log = _readLS(LS_LOGINS, []);
+        log.push({ Timestamp: new Date().toISOString(), DomainId: domainId, Success: !!success, Detail: detail || '' });
+        _writeLS(LS_LOGINS, log);
+      }
     },
-    all() { return _readLS(LS_LOGINS, []); },
+    async all() {
+      if (UserStore.backend === 'sp') {
+        const items = await SP.items(CFG().lists.logins,
+          '$select=Created,DomainId,Success,Detail&$orderby=Id desc&$top=500');
+        return items.map(it => ({ Timestamp: it.Created, DomainId: it.DomainId, Success: it.Success, Detail: it.Detail }));
+      }
+      return _readLS(LS_LOGINS, []);
+    },
   };
 
-  // ── AuthProvider ──────────────────────────────────────────
-  // THE SSO SWAP POINT. Replace authenticate() with an MSAL
-  // token flow; the rest of the app never changes.
+  // ── AppConfig — shared application settings ──────────────
+  // Source of truth: CATALYST_Configuration list (Title=key, ConfigValue=value).
+  // localStorage mirrors it as an offline cache only.
+  const AppConfig = {
+    _cfg: null,
+
+    async load() {
+      if (UserStore.backend === 'sp') {
+        try {
+          const items = await SP.items(CFG().lists.config,
+            '$select=Title,ConfigValue,ConfigGroup&$top=500');
+          this._cfg = { ...CONFIG_DEFAULTS };
+          items.forEach(it => { if (it.Title) this._cfg[it.Title] = it.ConfigValue; });
+          _writeLS(LS_CONFIG, this._cfg);
+          return;
+        } catch (e) { console.warn('Config load from SP failed', e); }
+      }
+      this._cfg = { ...CONFIG_DEFAULTS, ...(_readLS(LS_CONFIG, {}) || {}) };
+    },
+
+    get(key, fallback) {
+      const v = this._cfg?.[key];
+      return (v === undefined || v === null || v === '') ? fallback : v;
+    },
+    getNum(key, fallback) { const n = parseFloat(this.get(key, '')); return isNaN(n) ? fallback : n; },
+  };
+
+  // ── AuthProvider — SSO swap point ─────────────────────────
   const AuthProvider = {
     authenticate(domainId, password) {
       const user = UserStore.find(domainId);
-      if (!user)            return { ok:false, reason:'Unknown Domain ID' };
-      if (!user.Active)     return { ok:false, reason:'Account disabled. Contact an Admin.' };
-      if (password !== SHARED_PASSWORD) return { ok:false, reason:'Incorrect password' };
-      return { ok:true, user };
+      if (!user)                          return { ok: false, reason: 'Unknown Domain ID' };
+      if (!user.Active)                   return { ok: false, reason: 'Account disabled. Contact an Admin.' };
+      if (password !== AppConfig.get('SharedPassword', CONFIG_DEFAULTS.SharedPassword))
+                                          return { ok: false, reason: 'Incorrect password' };
+      return { ok: true, user };
     },
   };
 
@@ -166,8 +308,7 @@ const CATALYST_AUTH = (() => {
     try {
       const s = sessionStorage.getItem(SS_SESSION);
       if (!s) return null;
-      const sess = JSON.parse(s);
-      const u = UserStore.find(sess.DomainId);
+      const u = UserStore.find(JSON.parse(s).DomainId);
       return (u && u.Active) ? u : null;
     } catch (e) { return null; }
   }
@@ -194,7 +335,7 @@ const CATALYST_AUTH = (() => {
     return !!(u && u.Role === 'Admin');
   }
 
-  return { UserStore, Audit, LoginActivity, AuthProvider, ROLES, currentUser, login, logout, isAdmin };
+  return { UserStore, Audit, LoginActivity, AppConfig, AuthProvider, ROLES, currentUser, login, logout, isAdmin, backendMode: () => UserStore.backend };
 })();
 
 
@@ -204,12 +345,17 @@ const CATALYST_AUTH = (() => {
 const CatalystAuthUI = (() => {
 
   function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   // ── Login gate ────────────────────────────────────────────
-  function initGate(onReady) {
+  async function initGate(onReady) {
     const overlay = document.getElementById('loginOverlay');
+    // Load the user store (SP first, local fallback) before any auth check
+    try { await CATALYST_AUTH.UserStore.load(); }
+    catch (e) { console.warn('UserStore load failed, using seed/local', e); CATALYST_AUTH.UserStore.backend = 'local'; }
+    await CATALYST_AUTH.AppConfig.load();
+
     const user = CATALYST_AUTH.currentUser();
     if (user) {
       overlay?.remove();
@@ -220,11 +366,15 @@ const CatalystAuthUI = (() => {
     if (!overlay) { onReady(); return; }
     overlay.style.display = 'flex';
     document.body.classList.add('auth-locked');
+    _showModeBanner();
 
     const form = document.getElementById('loginForm');
     const errEl = document.getElementById('loginError');
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
+      // Refresh roster before authenticating so a new user can log in
+      // immediately after being added by another admin.
+      try { await CATALYST_AUTH.UserStore.load(true); } catch (e) {}
       const dom = document.getElementById('loginDomain').value.trim();
       const pwd = document.getElementById('loginPassword').value;
       const res = CATALYST_AUTH.login(dom, pwd);
@@ -240,6 +390,17 @@ const CatalystAuthUI = (() => {
     });
   }
 
+  function _showModeBanner() {
+    if (CATALYST_AUTH.backendMode() === 'sp') return;
+    const overlay = document.getElementById('loginOverlay');
+    if (!overlay || document.getElementById('localModeNote')) return;
+    const n = document.createElement('div');
+    n.id = 'localModeNote';
+    n.className = 'local-mode-note';
+    n.textContent = 'LOCAL MODE — not connected to SharePoint. Changes stay on this machine.';
+    overlay.querySelector('.login-card')?.appendChild(n);
+  }
+
   function _applyIdentity(user) {
     const chip = document.getElementById('currentUserChip');
     if (chip) {
@@ -249,7 +410,6 @@ const CatalystAuthUI = (() => {
     }
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) logoutBtn.style.display = '';
-    // Admin-only nav item
     if (user.Role === 'Admin') {
       const nav = document.querySelector('.nav-item[data-page="users"]');
       if (nav) nav.style.display = '';
@@ -257,11 +417,31 @@ const CatalystAuthUI = (() => {
   }
 
   // ── User Management page ──────────────────────────────────
-  function renderUsersPage() {
+  async function renderUsersPage() {
     if (!CATALYST_AUTH.isAdmin()) return;
-    _renderUserTable();
-    _renderAuditTable();
-    _renderLoginActivity();
+    _renderModeNote();
+    try { await CATALYST_AUTH.UserStore.load(); } catch (e) {}
+    await _renderUserTable();
+    await _renderAuditTable();
+    await _renderLoginActivity();
+  }
+
+  function _renderModeNote() {
+    const page = document.getElementById('page-users');
+    if (!page) return;
+    let n = document.getElementById('umModeNote');
+    if (!n) {
+      n = document.createElement('div');
+      n.id = 'umModeNote';
+      page.querySelector('.page-header')?.after(n);
+    }
+    if (CATALYST_AUTH.backendMode() === 'sp') {
+      n.className = 'um-mode um-mode-sp';
+      n.textContent = 'Connected to SharePoint — changes are shared with all users.';
+    } else {
+      n.className = 'um-mode um-mode-local';
+      n.textContent = 'LOCAL MODE — changes are saved only on this machine.';
+    }
   }
 
   function _roleBadge(role) {
@@ -269,7 +449,7 @@ const CatalystAuthUI = (() => {
     return `<span class="role-badge ${cls}">${esc(role)}</span>`;
   }
 
-  function _renderUserTable() {
+  async function _renderUserTable() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
     const me = CATALYST_AUTH.currentUser();
@@ -284,7 +464,7 @@ const CatalystAuthUI = (() => {
         <td class="user-actions">
           <button class="btn-mini" onclick="CatalystAuthUI.editUser('${esc(u.DomainId)}')">Edit</button>
           <button class="btn-mini" onclick="CatalystAuthUI.changeRole('${esc(u.DomainId)}')">Role</button>
-          ${u.DomainId !== me.DomainId
+          ${me && u.DomainId !== me.DomainId
             ? `<button class="btn-mini ${u.Active ? 'btn-warn' : 'btn-ok'}"
                  onclick="CatalystAuthUI.toggleActive('${esc(u.DomainId)}')">${u.Active ? 'Disable' : 'Enable'}</button>`
             : ''}
@@ -292,10 +472,10 @@ const CatalystAuthUI = (() => {
       </tr>`).join('');
   }
 
-  function _renderAuditTable() {
+  async function _renderAuditTable() {
     const tbody = document.getElementById('auditTableBody');
     if (!tbody) return;
-    const rows = CATALYST_AUTH.Audit.all().slice().reverse();
+    const rows = (await CATALYST_AUTH.Audit.all()).slice();
     tbody.innerHTML = rows.length ? rows.map(a => `
       <tr>
         <td>${new Date(a.Timestamp).toLocaleString()}</td>
@@ -309,10 +489,10 @@ const CatalystAuthUI = (() => {
       : '<tr><td colspan="7" class="empty-cell">No audit events yet.</td></tr>';
   }
 
-  function _renderLoginActivity() {
+  async function _renderLoginActivity() {
     const tbody = document.getElementById('loginActivityBody');
     if (!tbody) return;
-    const rows = CATALYST_AUTH.LoginActivity.all().slice().reverse().slice(0, 200);
+    const rows = (await CATALYST_AUTH.LoginActivity.all()).slice(0, 200);
     tbody.innerHTML = rows.length ? rows.map(l => `
       <tr>
         <td>${new Date(l.Timestamp).toLocaleString()}</td>
@@ -342,9 +522,14 @@ const CatalystAuthUI = (() => {
       </div>`;
     document.body.appendChild(wrap);
     wrap.addEventListener('click', e => { if (e.target === wrap) _closeModal(); });
-    document.getElementById('modalSaveBtn').addEventListener('click', () => {
-      try { onSave(); _closeModal(); renderUsersPage(); }
-      catch (err) { document.getElementById('modalError').textContent = err.message; }
+    document.getElementById('modalSaveBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('modalSaveBtn');
+      btn.disabled = true;
+      try { await onSave(); _closeModal(); renderUsersPage(); }
+      catch (err) {
+        btn.disabled = false;
+        document.getElementById('modalError').textContent = err.message;
+      }
     });
   }
   function _closeModal() { document.getElementById('userModal')?.remove(); }
@@ -358,10 +543,10 @@ const CatalystAuthUI = (() => {
       <label>Role<select id="mRole">
         ${CATALYST_AUTH.ROLES.map(r => `<option>${r}</option>`).join('')}
       </select></label>`,
-      () => {
+      async () => {
         const v = id => document.getElementById(id).value;
         if (!v('mDomain').trim() || !v('mName').trim()) throw new Error('Domain ID and Name are required.');
-        CATALYST_AUTH.UserStore.add(
+        await CATALYST_AUTH.UserStore.add(
           { DomainId: v('mDomain'), Name: v('mName'), Manager: v('mManager'), Email: v('mEmail'), Role: v('mRole') },
           CATALYST_AUTH.currentUser().DomainId);
       });
@@ -374,9 +559,9 @@ const CatalystAuthUI = (() => {
       <label>Associate Name<input id="mName" value="${esc(u.Name)}"></label>
       <label>Manager<input id="mManager" value="${esc(u.Manager)}"></label>
       <label>Email<input id="mEmail" type="email" value="${esc(u.Email)}"></label>`,
-      () => {
+      async () => {
         const v = id => document.getElementById(id).value;
-        CATALYST_AUTH.UserStore.update(domainId,
+        await CATALYST_AUTH.UserStore.update(domainId,
           { Name: v('mName').trim(), Manager: v('mManager').trim(), Email: v('mEmail').trim() },
           CATALYST_AUTH.currentUser().DomainId);
       });
@@ -390,16 +575,16 @@ const CatalystAuthUI = (() => {
       <label>New Role<select id="mRole">
         ${CATALYST_AUTH.ROLES.map(r => `<option ${r === u.Role ? 'selected' : ''}>${r}</option>`).join('')}
       </select></label>`,
-      () => {
-        CATALYST_AUTH.UserStore.setRole(domainId, document.getElementById('mRole').value,
+      async () => {
+        await CATALYST_AUTH.UserStore.setRole(domainId, document.getElementById('mRole').value,
           CATALYST_AUTH.currentUser().DomainId);
       });
   }
 
-  function toggleActive(domainId) {
+  async function toggleActive(domainId) {
     const u = CATALYST_AUTH.UserStore.find(domainId);
     if (!u) return;
-    CATALYST_AUTH.UserStore.setActive(domainId, !u.Active, CATALYST_AUTH.currentUser().DomainId);
+    await CATALYST_AUTH.UserStore.setActive(domainId, !u.Active, CATALYST_AUTH.currentUser().DomainId);
     renderUsersPage();
   }
 

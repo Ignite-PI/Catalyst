@@ -1345,3 +1345,12 @@ input[type="date"].select-filter {
 .modal-note { font-size:13px; color:#4A4560; margin:0 0 12px; }
 .modal-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
 .modal-error { color:#C94A3A; font-size:12px; margin-top:10px; }
+
+/* Backend mode indicators */
+.local-mode-note {
+  margin-top:12px; padding:8px 10px; border-radius:6px;
+  background:#FFF4E5; color:#B26A00; font-size:11px; font-weight:600;
+}
+.um-mode { padding:10px 14px; border-radius:8px; font-size:12px; font-weight:600; margin-bottom:16px; }
+.um-mode-sp    { background:#E8F5E9; color:#2E7D32; }
+.um-mode-local { background:#FFF4E5; color:#B26A00; }

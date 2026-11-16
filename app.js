@@ -754,8 +754,8 @@ function renderOverview() {
     });
   }
 
-  // Enterprise SLA pass/fail (threshold: 90%)
-  const SLA_THRESHOLD = 0.90;
+  // Enterprise SLA pass/fail — threshold from CATALYST_Configuration (SlaThreshold), fallback 0.90
+  const SLA_THRESHOLD = (window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold', 0.90) : 0.90);
   const slaPassing = entSLAPct >= SLA_THRESHOLD;
   const entCard = document.getElementById('kpi-entSLA');
   if (entCard) {
@@ -933,8 +933,9 @@ function renderRiskTable(rows) {
     let outBadgeCls = 'risk-badge-green';
     if (row.pct > 0.05)      { outBadgeCls = 'risk-badge-red'; }
     else if (row.pct > 0.02) { outBadgeCls = 'risk-badge-yellow'; }
-    // In SLA %: >= 90% green, < 90% salmon — identical badge component
-    const inBadgeCls = parseFloat(inPct) >= 90 ? 'risk-badge-green' : 'risk-badge-red';
+    // In SLA %: >= threshold green, below salmon — identical badge component
+    const slaThreshPct = (window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold', 0.90) : 0.90) * 100;
+    const inBadgeCls = parseFloat(inPct) >= slaThreshPct ? 'risk-badge-green' : 'risk-badge-red';
     return `
       <tr>
         <td>${row.type}</td>
@@ -1211,8 +1212,8 @@ function renderSLAPage() {
       labels: slaByType.map(t=>t.type),
       datasets: [{
         data: slaByType.map(t=>t.pct),
-        backgroundColor: slaByType.map(t => t.pct >= 90 ? C.teal+'AA' : '#FA807288'),
-        borderColor:     slaByType.map(t => t.pct >= 90 ? C.teal      : '#FA8072'),
+        backgroundColor: slaByType.map(t => t.pct >= ((window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold',0.90) : 0.90)*100) ? C.teal+'AA' : '#FA807288'),
+        borderColor:     slaByType.map(t => t.pct >= ((window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold',0.90) : 0.90)*100) ? C.teal      : '#FA8072'),
         borderWidth: 1,
         borderRadius: 6,
         datalabels: slaDL,
@@ -1556,7 +1557,7 @@ function renderTrendInsights(invPts, invMA, slaPts, slaMA, inPts, outPts) {
 
   // ── 2. Enterprise SLA Insight ─────────────────────────────
   {
-    const SLA_TARGET = 90;
+    const SLA_TARGET = (window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold',0.90) : 0.90)*100;
     const validSla   = slaPts.filter(p => p.y != null);
     const currentSla = validSla[validSla.length - 1]?.y ?? 0;
     const low        = validSla.reduce((m, p) => p.y < m.y ? p : m, validSla[0] || {y:0});
@@ -1576,12 +1577,12 @@ function renderTrendInsights(invPts, invMA, slaPts, slaMA, inPts, outPts) {
     let statusTxt, statusCls, narrative;
     if (passing) {
       statusTxt = 'PASSING SLA'; statusCls = 'insight-status insight-status-pass';
-      narrative = `Enterprise SLA is currently ${currentSla.toFixed(1)}%, which is ${varStr} above the 90% threshold. ` +
+      narrative = `Enterprise SLA is currently ${currentSla.toFixed(1)}%, which is ${varStr} above the ${((window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold',0.90) : 0.90)*100).toFixed(0)}% threshold. ` +
         `Performance has recovered from a historical low of ${low.y.toFixed(1)}% and is operating within acceptable bounds. ` +
         `No immediate action required.`;
     } else {
       statusTxt = 'FAILING SLA'; statusCls = 'insight-status insight-status-fail';
-      narrative = `Enterprise SLA is currently ${currentSla.toFixed(1)}%, which is ${varStr} below the 90% threshold. ` +
+      narrative = `Enterprise SLA is currently ${currentSla.toFixed(1)}%, which is ${varStr} below the ${((window.CATALYST_AUTH ? CATALYST_AUTH.AppConfig.getNum('SlaThreshold',0.90) : 0.90)*100).toFixed(0)}% threshold. ` +
         `The historical low was ${low.y.toFixed(1)}%. ` +
         `Immediate attention is required to identify and resolve the claim types driving SLA non-compliance.`;
     }
